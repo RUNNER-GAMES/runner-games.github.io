@@ -186,9 +186,30 @@ if (!reduce){
   let x = 60, y = 0, vy = 0, dir = 1, on = "floor", onEl = null, think = .4, last = performance.now(), frame = 0, ft = 0, started = false;
   const plats = () => [...document.querySelectorAll(".game, .perks li")].map(e => ({e, r: e.getBoundingClientRect()})).filter(p => p.r.width > 40 && p.r.bottom > 0 && p.r.top < innerHeight);
   const jumpTo = h => { vy = -Math.sqrt(2*G*Math.max(40, h)); on = null; onEl = null; };
-  el.addEventListener("click", () => { if (on) jumpTo(120); });
+  if (!matchMedia("(hover: none), (max-width: 560px)").matches) el.addEventListener("click", () => { if (on) jumpTo(120); });
+  /* On phones he runs laps around the edges of the WHOLE page instead: along the very top, down the right side,
+     upside down along the very bottom of the page, and back up the left side. Scroll to find him. */
+  const LAP = matchMedia("(hover: none), (max-width: 560px)").matches;
+  let d = 0, jumpL = 0, jvL = 0;
+  if (LAP){ el.style.position = "absolute"; el.addEventListener("click", () => { if (!jumpL) jvL = 520; }); }
+  function lapTick(dt){
+    const S = el.offsetWidth, T = el.offsetHeight, PAD = 4;
+    const W = document.documentElement.clientWidth - PAD*2, H = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) - PAD*2;
+    const w = W - S, h = H - T, lap = 2*w + 2*h, SP = 190;
+    d = (d + SP*dt) % lap;
+    if (jvL || jumpL){ jumpL += jvL*dt; jvL -= 1500*dt; if (jumpL <= 0){ jumpL = 0; jvL = 0; } }
+    let x, y, r;
+    if (d < w){ x = W - S - d; y = 0; r = 180; }                                   // top of the page, running left (upside down)
+    else if (d < w + h){ const k = d - w; x = (T - S)/2; y = k; r = 90; }          // down the left side
+    else if (d < 2*w + h){ const k = d - w - h; x = k; y = H - T; r = 0; }         // the very bottom of the page, running right
+    else { const k = d - 2*w - h; x = W - (S + T)/2; y = H - T - k; r = -90; }      // back up the right side
+    ft += dt*(SP/9); frame = ((Math.floor(ft) % 8) + 8) % 8;
+    el.style.transform = `translate(${x + PAD}px, ${y + PAD}px) rotate(${r}deg) translateY(${-jumpL}px)`;
+    c.clearRect(0, 0, 16, 20); c.drawImage(FR[jumpL > 0 ? 2 : frame], 0, 0);
+  }
   function tick(now){
     const dt = Math.max(0, Math.min(.04, (now - last)/1000)); last = now;
+    if (LAP){ lapTick(dt); requestAnimationFrame(tick); return; }
     const vv = window.visualViewport, W = document.documentElement.clientWidth, H = (vv ? vv.height : innerHeight) - IN, S = el.offsetWidth, T = el.offsetHeight;
     if (!started){ started = true; y = H; }
     const P = plats();
